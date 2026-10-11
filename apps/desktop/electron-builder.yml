@@ -19,6 +19,7 @@ npmRebuild: false
 nodeGypRebuild: false
 extraMetadata:
   name: mixdog-desktop
+  desktopName: mixdog-desktop.desktop
 protocols:
   name: Mixdog
   schemes:
@@ -99,6 +100,9 @@ mac:
     NSMicrophoneUsageDescription: Mixdog uses the microphone for voice dictation.
     NSAppleEventsUsageDescription: Mixdog uses AppleScript to show native folder pickers and read clipboard attachments.
 linux:
+  executableName: mixdog-desktop
+  syncDesktopName: true
+  icon: build/mixdog.png
   category: Development
   target:
     - AppImage

@@ -5,12 +5,39 @@
 // in packaging.test.mjs.
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
+import { execFile } from 'node:child_process';
 import { access, open, readdir, readFile } from 'node:fs/promises';
 import { dirname, join, sep } from 'node:path';
 import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
+import { promisify } from 'node:util';
 import { listPackage, statFile } from '@electron/asar';
 import { onnxRuntimeSupported } from '../../../../src/runtime/shared/onnx-runtime-support.mjs';
+
+test('packaged Linux Electron can load the PTY addon and execute a shell', {
+  skip: process.platform !== 'linux',
+  timeout: 20_000,
+}, async () => {
+  const appRoot = fileURLToPath(new URL('../../dist/linux-unpacked/', import.meta.url));
+  const ptyRoot = join(appRoot, 'resources', 'app.asar.unpacked', 'node_modules', '@homebridge', 'node-pty-prebuilt-multiarch');
+  const probe = `
+    const pty = require(${JSON.stringify(ptyRoot)});
+    let output = '';
+    const timer = setTimeout(() => process.exit(2), 5000);
+    const term = pty.spawn('/bin/sh', ['-c', 'printf packaged-linux-pty-ok'], { env: process.env });
+    term.onData((data) => { output += data; });
+    term.onExit(({ exitCode }) => {
+      clearTimeout(timer);
+      if (exitCode !== 0 || !output.includes('packaged-linux-pty-ok')) process.exit(1);
+      console.log('packaged-linux-pty-ok');
+    });
+  `;
+  const { stdout } = await promisify(execFile)(join(appRoot, 'mixdog-desktop'), ['-e', probe], {
+    env: { ...process.env, ELECTRON_RUN_AS_NODE: '1' },
+    timeout: 10_000,
+  });
+  assert.match(stdout, /packaged-linux-pty-ok/);
+});
 
 async function findRuntimeArchives(directory, depth = 0) {
   if (depth > 8) return [];

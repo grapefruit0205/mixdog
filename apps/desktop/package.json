@@ -55,7 +55,8 @@
     "build:win": "npm run build && npm run prepare:runtime -- --platform=win32 --arch=x64 && npm run brand:win && electron-builder --win --x64 --publish never && npm run verify:update-metadata",
     "build:win:arm64": "npm run build && npm run prepare:runtime -- --platform=win32 --arch=arm64 && npm run brand:win && electron-builder --win --arm64 --publish never && npm run verify:update-metadata",
     "build:mac": "npm run build && npm run prepare:runtime && electron-builder --mac",
-    "build:linux": "npm run build && npm run prepare:runtime && electron-builder --linux",
+    "build:linux": "npm run build && npm run prepare:runtime && electron-builder --linux --publish never",
+    "install:linux": "node scripts/install-linux.mjs",
     "i18n:sync": "node scripts/sync-i18n.mjs",
     "i18n:check": "node scripts/check-i18n.mjs"
   },

@@ -6,6 +6,7 @@ import { performance } from 'node:perf_hooks';
 import { fileURLToPath } from 'node:url';
 import { promisify } from 'node:util';
 import { listPackage, statFile } from '@electron/asar';
+import electron from 'electron';
 import { createAsarPackage } from './asar-pack.mjs';
 import { embeddingRuntimeTarget, pruneEmbeddingRuntime } from '../../../scripts/prune-embedding-runtime.mjs';
 import { pruneDesktopPtyPackage, pruneDesktopRuntime } from '../../../scripts/prune-desktop-runtime.mjs';
@@ -38,6 +39,46 @@ async function patchDesktopPtyHelperPath(packageDir) {
     throw new Error(`node-pty spawn-helper path rewrite changed upstream; review ${file}`);
   }
   await writeFile(file, source.replace(PTY_HELPER_REWRITE, PTY_HELPER_REWRITE_FIXED));
+}
+
+async function prepareLinuxDesktopPty(packageDir, target) {
+  if (target.platform !== 'linux') return;
+  if (process.platform !== target.platform || process.arch !== target.arch) {
+    throw new Error('Linux desktop PTY preparation requires a host matching the target architecture.');
+  }
+  const environment = { ...process.env, ELECTRON_RUN_AS_NODE: '1' };
+  const { stdout } = await execFileAsync(electron, ['-p', 'process.versions.modules'], { env: environment });
+  const abi = stdout.trim();
+  if (!/^\d+$/.test(abi)) throw new Error(`Invalid Electron ABI: ${abi}`);
+  const prebuilds = join(packageDir, 'prebuilds', `linux-${target.arch}`);
+  const active = join(prebuilds, `electron.abi${abi}.node`);
+  try {
+    await access(active);
+  } catch (error) {
+    if (error?.code !== 'ENOENT') throw error;
+    // This node-pty release uses Node-API, but its loader still selects by
+    // runtime/ABI filename. npm ships only node.* Linux prebuilds, so even a
+    // compatible binary is invisible to Electron. Stage an Electron alias,
+    // then prove it loads AND forks with the Electron executable we package.
+    const candidates = (await readdir(prebuilds))
+      .filter((name) => /^node\.abi\d+\.node$/.test(name))
+      .sort((left, right) => Number(right.match(/abi(\d+)/)[1]) - Number(left.match(/abi(\d+)/)[1]));
+    if (!candidates.length) throw new Error(`No glibc Node-API PTY prebuild in ${prebuilds}`);
+    await cp(join(prebuilds, candidates[0]), active);
+  }
+  const probe = `
+    const pty = require(${JSON.stringify(packageDir)});
+    let output = '';
+    const timer = setTimeout(() => process.exit(2), 5000);
+    const term = pty.spawn('/bin/sh', ['-c', 'printf mixdog-linux-pty-ok'], { env: process.env });
+    term.onData((data) => { output += data; });
+    term.onExit(({ exitCode }) => {
+      clearTimeout(timer);
+      if (exitCode !== 0 || !output.includes('mixdog-linux-pty-ok')) process.exit(1);
+      console.log('Linux Electron PTY verified');
+    });
+  `;
+  await execFileAsync(electron, ['-e', probe], { env: environment, timeout: 10_000 });
 }
 const desktopDir = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const rootDir = resolve(desktopDir, '../..');
@@ -514,6 +555,7 @@ async function prepareRuntime(manifest, fingerprint) {
     await timed('desktop-node-pty', async () => {
       await cp(desktopPtyPackageDir, builderDesktopPtyDir, { recursive: true });
       await patchDesktopPtyHelperPath(builderDesktopPtyDir);
+      await prepareLinuxDesktopPty(builderDesktopPtyDir, embeddingTarget);
       const ptyPrune = await pruneDesktopPtyPackage(builderDesktopPtyDir, embeddingTarget);
       console.log(
         `Pruned desktop node-pty from ${(ptyPrune.beforeBytes / 1024 / 1024).toFixed(1)} MiB ` +
