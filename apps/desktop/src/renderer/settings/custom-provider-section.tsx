@@ -21,6 +21,32 @@ interface CustomModel {
   name?: string;
   contextWindow?: number;
   maxOutputTokens?: number;
+  reasoningLevels?: string[];
+}
+
+// The reasoning levels a custom model may declare. Comma-separated in the
+// form; the runtime reads the list as the model's effort catalog.
+export const CUSTOM_REASONING_LEVELS = [
+  'none',
+  'minimal',
+  'low',
+  'medium',
+  'high',
+  'xhigh',
+  'max',
+  'ultra',
+] as const;
+
+function parseReasoningLevels(value: string): string[] {
+  const seen = new Set<string>();
+  const levels: string[] = [];
+  for (const part of value.split(',')) {
+    const level = part.trim().toLowerCase();
+    if (!level || seen.has(level)) continue;
+    seen.add(level);
+    levels.push(level);
+  }
+  return levels;
 }
 
 export function isCustomProvider(provider: RecordValue): boolean {
@@ -92,6 +118,7 @@ function CustomProviderForm({
   const [models, setModels] = useState<CustomModel[]>(existing);
   const [manualOpen, setManualOpen] = useState(existing.length > 0);
   const [modelDraft, setModelDraft] = useState('');
+  const [levelsDraft, setLevelsDraft] = useState('');
   const disabled = busy || working !== '';
   const close = () => {
     if (!disabled) onClose();
@@ -113,7 +140,11 @@ function CustomProviderForm({
     // Every visible explicit model is submitted (the user can remove any);
     // an empty list means automatic discovery.
     const draft = modelDraft.trim();
-    const withDraft = draft && !models.some((model) => model.id === draft) ? [...models, { id: draft }] : models;
+    const draftLevels = parseReasoningLevels(levelsDraft);
+    const withDraft =
+      draft && !models.some((model) => model.id === draft)
+        ? [...models, { id: draft, ...(draftLevels.length ? { reasoningLevels: draftLevels } : {}) }]
+        : models;
     const input: RecordValue = { name: name.trim(), protocol, baseURL: baseURL.trim(), models: withDraft };
     if (provider) input.id = provider.id;
     if (apiKey.trim()) input.apiKey = apiKey;
@@ -127,8 +158,12 @@ function CustomProviderForm({
 
   const addModel = () => {
     const id = modelDraft.trim();
-    if (id && !models.some((model) => model.id === id)) setModels([...models, { id }]);
+    const levels = parseReasoningLevels(levelsDraft);
+    if (id && !models.some((model) => model.id === id)) {
+      setModels([...models, { id, ...(levels.length ? { reasoningLevels: levels } : {}) }]);
+    }
     setModelDraft('');
+    setLevelsDraft('');
     changed();
   };
 
@@ -308,6 +343,23 @@ function CustomProviderForm({
                   }
                 }}
               />
+              <input
+                value={levelsDraft}
+                disabled={disabled}
+                autoComplete="off"
+                aria-label={t('Reasoning levels')}
+                placeholder={t('Reasoning levels')}
+                onChange={(event) => {
+                  setLevelsDraft(event.target.value);
+                  changed();
+                }}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter') {
+                    event.preventDefault();
+                    addModel();
+                  }
+                }}
+              />
               <button
                 type="button"
                 className="provider-account-add-button"
@@ -321,8 +373,29 @@ function CustomProviderForm({
             </div>
             <ul>
               {models.map((model) => (
-                <li className="extensions-mcp-list-row" key={model.id}>
+                <li className="settings-custom-models-row" key={model.id}>
                   <span title={model.id}>{model.id}</span>
+                  <input
+                    value={(model.reasoningLevels || []).join(', ')}
+                    disabled={disabled}
+                    autoComplete="off"
+                    aria-label={t('Reasoning levels for {{name}}', { name: model.id })}
+                    placeholder={t('Reasoning levels')}
+                    onChange={(event) => {
+                      const levels = parseReasoningLevels(event.target.value);
+                      setModels(
+                        models.map((item) => {
+                          if (item !== model) return item;
+                          if (!levels.length) {
+                            const { reasoningLevels: _drop, ...rest } = item;
+                            return rest;
+                          }
+                          return { ...item, reasoningLevels: levels };
+                        })
+                      );
+                      changed();
+                    }}
+                  />
                   <button
                     type="button"
                     disabled={disabled}

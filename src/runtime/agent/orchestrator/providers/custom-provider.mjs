@@ -40,6 +40,20 @@ function normalizeBaseURL(raw) {
   return assertSafeBaseURL(value.replace(/\/+$/, ''), 'custom');
 }
 
+function normalizeReasoningLevels(raw, modelId) {
+  if (raw === undefined || raw === null) return undefined;
+  if (!Array.isArray(raw)) fail(`model ${modelId} reasoningLevels must be an array`);
+  const seen = new Set();
+  const levels = [];
+  for (const item of raw) {
+    const value = text(item).toLowerCase();
+    if (!value || seen.has(value)) continue;
+    seen.add(value);
+    levels.push(value);
+  }
+  return levels.length ? levels : undefined;
+}
+
 function normalizeModels(raw, requireModels) {
   if (raw === undefined || raw === null) raw = [];
   if (!Array.isArray(raw)) fail('models must be an array');
@@ -52,11 +66,13 @@ function normalizeModels(raw, requireModels) {
     const name = text(entry.name);
     const contextWindow = positiveInt(entry.contextWindow, `model ${id} contextWindow`);
     const maxOutputTokens = positiveInt(entry.maxOutputTokens, `model ${id} maxOutputTokens`);
+    const reasoningLevels = normalizeReasoningLevels(entry.reasoningLevels, id);
     return {
       id,
       ...(name ? { name } : {}),
       ...(contextWindow ? { contextWindow } : {}),
       ...(maxOutputTokens ? { maxOutputTokens } : {}),
+      ...(reasoningLevels ? { reasoningLevels } : {}),
     };
   });
   if (requireModels && models.length === 0) fail('at least one model is required');
@@ -87,6 +103,14 @@ function modelRow(id, m) {
     provider: id,
     contextWindow: m.contextWindow || 0,
     outputTokens: m.maxOutputTokens || null,
+    // The route/picker reads the effort catalog from either shape; both the
+    // chat and responses transports normalize via reasoningOptions.
+    ...(m.reasoningLevels
+      ? {
+          reasoningLevels: [...m.reasoningLevels],
+          reasoningOptions: [{ type: 'effort', values: [...m.reasoningLevels] }],
+        }
+      : {}),
   };
 }
 

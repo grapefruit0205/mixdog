@@ -11,6 +11,27 @@ function normalizeReasoningEffort(value, allowed) {
   return allowed.includes(effort) ? effort : null;
 }
 
+// DeepSeek-style reasoning knobs (`thinking` + `reasoning_effort`), shared by
+// the first-class deepseek provider and custom `custom-<uuid>` endpoints that
+// speak the same OpenAI-compatible wire.
+function applyDeepseekStyleEffort(params, rawThinking, rawEffort) {
+  if (rawThinking === undefined && rawEffort === undefined) return;
+  const thinkingMode = String(rawThinking?.type ?? rawThinking ?? rawEffort)
+    .trim()
+    .toLowerCase();
+  const disabled = rawThinking === false || thinkingMode === 'disabled' || thinkingMode === 'none';
+  params.thinking = { type: disabled ? 'disabled' : 'enabled' };
+  if (disabled) return;
+  const effort = String(rawEffort ?? '')
+    .trim()
+    .toLowerCase();
+  if (effort === 'max') params.reasoning_effort = 'max';
+  // DeepSeek documents low/high/max; `medium` is its own alias for
+  // high, and `low` is a real level that must not be promoted.
+  else if (effort === 'low') params.reasoning_effort = 'low';
+  else if (['medium', 'high', 'xhigh'].includes(effort)) params.reasoning_effort = 'high';
+}
+
 // Keep provider extensions isolated: fields accepted by one OpenAI-compatible
 // backend are frequently rejected by another even when the core Chat schema
 // is shared.
@@ -41,25 +62,17 @@ export function applyCompatProviderChatOptions(params, providerName, opts = {}, 
     return params;
   }
   if (providerName === 'deepseek') {
-    const rawThinking = opts.deepseekThinking ?? opts.thinking ?? config?.thinking;
-    const rawEffort = opts.deepseekReasoningEffort ?? opts.effort ?? config?.reasoningEffort;
-    if (rawThinking !== undefined || rawEffort !== undefined) {
-      const thinkingMode = String(rawThinking?.type ?? rawThinking ?? rawEffort)
-        .trim()
-        .toLowerCase();
-      const disabled = rawThinking === false || thinkingMode === 'disabled' || thinkingMode === 'none';
-      params.thinking = { type: disabled ? 'disabled' : 'enabled' };
-      if (!disabled) {
-        const effort = String(rawEffort ?? '')
-          .trim()
-          .toLowerCase();
-        if (effort === 'max') params.reasoning_effort = 'max';
-        // DeepSeek documents low/high/max; `medium` is its own alias for
-        // high, and `low` is a real level that must not be promoted.
-        else if (effort === 'low') params.reasoning_effort = 'low';
-        else if (['medium', 'high', 'xhigh'].includes(effort)) params.reasoning_effort = 'high';
-      }
-    }
+    applyDeepseekStyleEffort(
+      params,
+      opts.deepseekThinking ?? opts.thinking ?? config?.thinking,
+      opts.deepseekReasoningEffort ?? opts.effort ?? config?.reasoningEffort
+    );
+    return params;
+  }
+  // Custom endpoints have no first-class preset; a model that declares
+  // reasoningLevels speaks the same deepseek-compatible wire.
+  if (String(providerName || '').startsWith('custom-')) {
+    applyDeepseekStyleEffort(params, opts.thinking ?? config?.thinking, opts.effort ?? config?.reasoningEffort);
     return params;
   }
   if (providerName === 'opencode-go') {

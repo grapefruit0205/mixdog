@@ -2273,6 +2273,8 @@
   "Reasoning": "推理中",
   "Reasoning {{levels}}": "推理 {{levels}}",
   "Reasoning effort": "推理强度",
+  "Reasoning levels": "推理层级",
+  "Reasoning levels for {{name}}": "{{name}} 的推理层级",
   "Reasoning tokens": "推理令牌",
   "Reauth required": "需要重新验证",
   "Rebase": "变基",

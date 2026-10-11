@@ -2273,6 +2273,8 @@
   "Reasoning": "推論中",
   "Reasoning {{levels}}": "推論 {{levels}}",
   "Reasoning effort": "推論の強さ",
+  "Reasoning levels": "推論レベル",
+  "Reasoning levels for {{name}}": "{{name}} の推論レベル",
   "Reasoning tokens": "推論トークン",
   "Reauth required": "再認証が必要です",
   "Rebase": "リベース",

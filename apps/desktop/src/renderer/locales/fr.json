@@ -2357,6 +2357,8 @@
   "Reasoning": "Raisonnement",
   "Reasoning {{levels}}": "Raisonnement {{levels}}",
   "Reasoning effort": "Effort de raisonnement",
+  "Reasoning levels": "Niveaux de raisonnement",
+  "Reasoning levels for {{name}}": "Niveaux de raisonnement pour {{name}}",
   "Reasoning tokens": "Jetons de raisonnement",
   "Reauth required": "Réauthentification requise",
   "Rebase": "Rebase",

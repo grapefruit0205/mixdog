@@ -26,3 +26,20 @@ test('custom provider input shape is validated', () => {
   assert.throws(() => requiredCustomProviderInput({ ...valid, models: [{ id: 'm', contextWindow: -1 }] }), /contextWindow/);
   assert.throws(() => requiredCustomProviderInput([]), /invalid/);
 });
+
+test('custom provider model reasoningLevels are shape- and vocabulary-checked', () => {
+  const withLevels = (reasoningLevels) => ({ ...valid, models: [{ id: 'm', reasoningLevels }] });
+  assert.deepEqual(requiredCustomProviderInput(withLevels(['low', 'high', 'max'])).models[0].reasoningLevels, [
+    'low',
+    'high',
+    'max',
+  ]);
+  assert.throws(() => requiredCustomProviderInput(withLevels('low')), /reasoningLevels/);
+  assert.throws(() => requiredCustomProviderInput(withLevels(['MAX'])), /reasoningLevels/);
+  assert.throws(() => requiredCustomProviderInput(withLevels(['extreme'])), /reasoningLevels/);
+  assert.throws(() => requiredCustomProviderInput(withLevels([1])), /reasoningLevels/);
+  assert.throws(
+    () => requiredCustomProviderInput(withLevels(['none', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max', 'ultra', 'low'])),
+    /reasoningLevels/
+  );
+});

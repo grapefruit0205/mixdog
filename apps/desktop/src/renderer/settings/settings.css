@@ -185,6 +185,17 @@
     align-items: center;
     min-width: 0;
   }
+  .settings-custom-models-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 34px;
+    gap: 6px;
+  }
+  .settings-custom-models-row > span {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
   .settings-custom-models li span {
     min-width: 0;
     overflow: hidden;

@@ -2315,6 +2315,8 @@
   "Reasoning": "Denkt nach",
   "Reasoning {{levels}}": "Überlegungen {{levels}}",
   "Reasoning effort": "Reasoning-Aufwand",
+  "Reasoning levels": "Reasoning-Stufen",
+  "Reasoning levels for {{name}}": "Reasoning-Stufen für {{name}}",
   "Reasoning tokens": "Reasoning-Token",
   "Reauth required": "Neuauthentisierung erforderlich",
   "Rebase": "Rebase",

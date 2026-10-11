@@ -94,6 +94,24 @@ test('normalizer returns only contract fields and validates input', () => {
   assert.deepEqual(normalizeCustomProviderConfig({ ...base, protocol: 'anthropic' }, { requireModels: false }).models, []);
 });
 
+test('a custom model keeps its declared reasoningLevels and exposes them as the effort catalog', async () => {
+  const out = normalizeCustomProviderConfig({
+    ...base,
+    protocol: 'openai-chat',
+    models: [{ id: 'm1', reasoningLevels: [' LOW ', 'high', 'high'] }, { id: 'm2' }],
+  });
+  // Trimmed, lowercased and de-duplicated; a model without the field omits it.
+  assert.deepEqual(out.models, [
+    { id: 'm1', reasoningLevels: ['low', 'high'] },
+    { id: 'm2' },
+  ]);
+  const id = 'custom-levels-1';
+  const p = await createCustomProvider(id, { ...base, protocol: 'openai-chat', apiKey: 'k', preconnect: false, models: out.models });
+  const [row] = await p.listModels();
+  assert.deepEqual(row.reasoningLevels, ['low', 'high']);
+  assert.deepEqual(row.reasoningOptions, [{ type: 'effort', values: ['low', 'high'] }]);
+});
+
 test('openai-chat: path, bearer auth, tool calls, configured models, custom identity', async () => {
   const id = 'custom-chat-1';
   const p = await createCustomProvider(id, {
@@ -140,6 +158,33 @@ test('openai-chat: empty models discover from /models', async () => {
   } finally {
     globalThis.fetch = realFetch;
   }
+});
+
+test('openai-chat: an effort is sent on the deepseek-compatible wire, normalized like deepseek', async () => {
+  const p = await createCustomProvider('custom-effort-1', {
+    ...base,
+    protocol: 'openai-chat',
+    apiKey: 'sk-effort',
+    preconnect: false,
+    models: [{ id: 'm1', reasoningLevels: ['low', 'medium', 'high', 'max'] }],
+  });
+  const requests = mock(p, () => sse(CHAT));
+  await p.send(prompt, 'm1', tools, { effort: 'max' });
+  assert.deepEqual(requests[0].body.thinking, { type: 'enabled' });
+  assert.equal(requests[0].body.reasoning_effort, 'max');
+  // `medium`/`xhigh` collapse to `high` on the wire, `low` stays `low`.
+  await p.send(prompt, 'm1', tools, { effort: 'medium' });
+  assert.equal(requests[1].body.reasoning_effort, 'high');
+  await p.send(prompt, 'm1', tools, { effort: 'low' });
+  assert.equal(requests[2].body.reasoning_effort, 'low');
+  // No effort on the turn: neither DeepSeek knob ships.
+  await p.send(prompt, 'm1', tools, {});
+  assert.equal(requests[3].body.thinking, undefined);
+  assert.equal(requests[3].body.reasoning_effort, undefined);
+  // `none` disables thinking and drops the effort.
+  await p.send(prompt, 'm1', tools, { effort: 'none' });
+  assert.deepEqual(requests[4].body.thinking, { type: 'disabled' });
+  assert.equal(requests[4].body.reasoning_effort, undefined);
 });
 
 test('openai-responses: generic /responses path, bearer auth, tool calls', async () => {

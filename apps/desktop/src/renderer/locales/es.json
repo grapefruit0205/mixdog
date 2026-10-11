@@ -2357,6 +2357,8 @@
   "Reasoning": "Razonando",
   "Reasoning {{levels}}": "Razonamiento {{levels}}",
   "Reasoning effort": "Esfuerzo de razonamiento",
+  "Reasoning levels": "Niveles de razonamiento",
+  "Reasoning levels for {{name}}": "Niveles de razonamiento para {{name}}",
   "Reasoning tokens": "Tokens de razonamiento",
   "Reauth required": "Se requiere reautenticación",
   "Rebase": "Rebase",

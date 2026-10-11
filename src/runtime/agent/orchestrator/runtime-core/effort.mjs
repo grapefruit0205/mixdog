@@ -43,6 +43,15 @@ const EFFORT_BY_FAMILY = {
   'gpt-codex': ['none', 'low', 'medium', 'high'],
   grok: ['low', 'medium', 'high', 'xhigh'],
 };
+// A custom endpoint has no first-class preset, so nothing in the catalog
+// describes its reasoning levels and the picker stays empty — which nulls a
+// saved effort at the route. When the model id itself names DeepSeek (e.g. a
+// relay id like `deepseek-ai/deepseek-v4.1-flash` behind an OpenAI-compatible
+// gateway), the custom transport already emits DeepSeek's `thinking` +
+// `reasoning_effort` wire, so the model gets DeepSeek's published levels
+// rather than none. Deliberately id-anchored and custom-only: no cross-provider
+// catalog guessing for endpoints the user declared.
+const EFFORT_BY_MODEL_VENDOR = [[/^deepseek[-.]/, ['low', 'high', 'max']]];
 const EFFORT_FALLBACKS = {
   ultra: ['ultra', 'max', 'xhigh', 'high', 'medium', 'low', 'minimal'],
   max: ['max', 'xhigh', 'high', 'medium', 'low', 'minimal'],
@@ -100,6 +109,14 @@ export function effortOptionsFor(provider, model) {
   if (declared.length) return normalizeCatalogValues(declared);
   if (Object.hasOwn(EFFORT_BY_FAMILY, family)) {
     return [...EFFORT_BY_FAMILY[family]];
+  }
+  // Custom endpoints only: the model id supplies the vendor hint. A declared
+  // list or catalog entry above always wins over this.
+  if (/^custom-/.test(clean(provider))) {
+    const id = clean(model?.id).toLowerCase();
+    for (const [pattern, levels] of EFFORT_BY_MODEL_VENDOR) {
+      if (pattern.test(id)) return [...levels];
+    }
   }
   return providerAllowed ? [...providerAllowed] : [];
 }

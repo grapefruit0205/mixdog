@@ -269,6 +269,37 @@ test('connection test passes manual models and expands manual entry on discovery
   assert.equal(document.querySelector('[role=status]').textContent, 'Connection successful.');
 });
 
+test('a manual model can declare reasoning levels, which persist and reopen in the editor', async (t) => {
+  const calls = [];
+  const { render } = mount(t, { calls, handlers: { saveCustomProvider: (i) => i } });
+  await render();
+  await fillNew();
+  await click(document.querySelector('details summary'));
+  const [idInput, levelsInput] = document.querySelectorAll('details input');
+  await type(idInput, 'm-1');
+  await type(levelsInput, ' Low , high, MAX , high ');
+  await click(button('Add model'));
+  assert.equal(document.querySelector('details ul li input').value, 'low, high, max');
+  await submit();
+  assert.deepEqual(calls.find((c) => c.capability === 'saveCustomProvider').args[0].models, [
+    { id: 'm-1', reasoningLevels: ['low', 'high', 'max'] },
+  ]);
+});
+
+test('clearing the reasoning levels drops the field from the saved model', async (t) => {
+  const calls = [];
+  const { render } = mount(t, {
+    calls,
+    api: [{ ...CUSTOM, models: [{ id: 'acme-1', reasoningLevels: ['low', 'high'] }] }],
+    handlers: { saveCustomProvider: (i) => i },
+  });
+  await render();
+  await click(button('Edit'));
+  await type(document.querySelector('details ul li input'), '');
+  await submit();
+  assert.deepEqual(calls.find((c) => c.capability === 'saveCustomProvider').args[0].models, [{ id: 'acme-1' }]);
+});
+
 test('editing shows explicit models expanded and preserves metadata', async (t) => {
   const calls = [];
   const meta = { id: 'acme-1', name: 'Acme One', contextWindow: 1000 };

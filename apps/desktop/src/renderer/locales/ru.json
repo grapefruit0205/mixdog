@@ -2399,6 +2399,8 @@
   "Reasoning": "Рассуждение",
   "Reasoning {{levels}}": "Рассуждение {{levels}}",
   "Reasoning effort": "Уровень рассуждения",
+  "Reasoning levels": "Уровни рассуждения",
+  "Reasoning levels for {{name}}": "Уровни рассуждения для {{name}}",
   "Reasoning tokens": "Токены рассуждений",
   "Reauth required": "Требуется повторная аутентификация",
   "Rebase": "Перебазировать",

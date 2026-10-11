@@ -249,8 +249,11 @@ export function requiredSessionContentQuery(value: unknown): string {
 }
 
 const CUSTOM_PROVIDER_KEYS = new Set(['id', 'name', 'protocol', 'baseURL', 'apiKey', 'models']);
-const CUSTOM_MODEL_KEYS = new Set(['id', 'name', 'contextWindow', 'maxOutputTokens']);
+const CUSTOM_MODEL_KEYS = new Set(['id', 'name', 'contextWindow', 'maxOutputTokens', 'reasoningLevels']);
 const CUSTOM_PROTOCOLS = new Set(['openai-chat', 'openai-responses', 'anthropic']);
+// Reasoning levels a custom model may declare; the runtime reads this list as
+// the model's effort catalog (see effort.mjs effortOptionsFor).
+const CUSTOM_REASONING_LEVELS = new Set(['none', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max', 'ultra']);
 
 function plainRecord(value: unknown, name: string): Record<string, unknown> {
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw new TypeError(`${name} is invalid.`);
@@ -281,6 +284,16 @@ export function requiredCustomProviderInput(value: unknown, modelsOptional = fal
     for (const key of ['contextWindow', 'maxOutputTokens']) {
       if (row[key] !== undefined && (!Number.isSafeInteger(row[key]) || Number(row[key]) <= 0)) {
         throw new TypeError(`custom provider model ${key} is invalid.`);
+      }
+    }
+    if (row.reasoningLevels !== undefined) {
+      if (!Array.isArray(row.reasoningLevels) || row.reasoningLevels.length > CUSTOM_REASONING_LEVELS.size) {
+        throw new TypeError('custom provider model reasoningLevels is invalid.');
+      }
+      for (const level of row.reasoningLevels) {
+        if (typeof level !== 'string' || !CUSTOM_REASONING_LEVELS.has(level)) {
+          throw new TypeError('custom provider model reasoningLevels is invalid.');
+        }
       }
     }
   }
