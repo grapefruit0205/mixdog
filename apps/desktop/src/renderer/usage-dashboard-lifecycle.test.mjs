@@ -12,6 +12,8 @@ import {
   USAGE_DASHBOARD_REFRESH_INTERVAL_MS as INTERVAL,
   USAGE_DASHBOARD_REQUEST_TIMEOUT_MS as TIMEOUT,
   USAGE_DASHBOARD_RETRY_DELAY_MS as RETRY,
+  CODEX_USAGE_REFRESH_INTERVAL_MS as CODEX_INTERVAL,
+  USAGE_TURN_SETTLE_DELAY_MS as SETTLE_DELAY,
 } from './usage-dashboard-store.ts';
 import { createRendererClock } from '../../scripts/test-renderer-clock.mjs';
 import { applyStageChange } from '../../../../src/tui/session/turn-stream.mjs';
@@ -335,6 +337,71 @@ test('usage polling pauses while hidden, revalidates stale data on return and ke
   assert.equal(calls, 3, 'auth/manual refresh is not a background poll');
   release();
   await clock.settle();
+  assert.equal(clock.timers.size + clock.doc.listenerCount() + clock.win.listenerCount(), 0);
+});
+
+test('Codex revalidates every minute and on an early return without forcing other providers', async (t) => {
+  const clock = createRendererClock();
+  bind(t, clock);
+  publishUsageDashboard({ rows: [oldAccount, otherProvider] });
+  const requests = [];
+  const api = {
+    async invokeCapability(request) {
+      requests.push(request);
+      return { value: { rows: [oldAccount, otherProvider] } };
+    },
+  };
+  const release = holdUsageDashboardCadence(api);
+  await clock.advance(CODEX_INTERVAL);
+  assert.equal(requests.length, 1);
+  assert.deepEqual(requests[0].args[0].refreshProviders, ['openai-oauth']);
+  clock.visibility('hidden');
+  await clock.advance(10_000);
+  assert.equal(requests.length, 1);
+  clock.visibility('visible');
+  await clock.settle();
+  assert.equal(requests.length, 2, 'return rechecks Codex even within the dashboard TTL');
+  assert.deepEqual(requests[1].args[0].refreshProviders, ['openai-oauth']);
+  release();
+  await clock.settle();
+  assert.equal(clock.timers.size + clock.doc.listenerCount() + clock.win.listenerCount(), 0);
+});
+
+test('completed turns across panes coalesce a Codex refresh and release pending completion work', async (t) => {
+  const clock = createRendererClock();
+  bind(t, clock);
+  publishUsageDashboard({ rows: [oldAccount] });
+  let receiveState;
+  let receiveSession;
+  const requests = [];
+  const api = {
+    subscribeState(listener) { receiveState = listener; return () => { receiveState = null; }; },
+    subscribeSessionState(listener) { receiveSession = listener; return () => { receiveSession = null; }; },
+    async invokeCapability(request) {
+      requests.push(request);
+      return { value: { rows: [oldAccount] } };
+    },
+  };
+  const release = holdUsageDashboardCadence(api);
+  receiveState({ busy: false });
+  receiveSession({ sessionId: 'worker', snapshot: { busy: false } });
+  await clock.advance(SETTLE_DELAY);
+  assert.equal(requests.length, 0, 'idle replay is not a completed turn');
+  receiveState({ busy: true });
+  receiveSession({ sessionId: 'worker', snapshot: { busy: true } });
+  receiveState({ busy: false });
+  receiveSession({ sessionId: 'worker', snapshot: { busy: false } });
+  await clock.advance(SETTLE_DELAY - 1);
+  assert.equal(requests.length, 0);
+  await clock.advance(1);
+  assert.equal(requests.length, 1, 'one query for simultaneous lead/worker completion');
+  assert.deepEqual(requests[0].args[0].refreshProviders, ['openai-oauth']);
+  assert.equal(getUsageDashboardSnapshot().status, 'ready');
+  receiveState({ busy: true });
+  receiveState({ busy: false });
+  release();
+  await clock.advance(SETTLE_DELAY);
+  assert.equal(requests.length, 1, 'teardown cancels the scheduled completion refresh');
   assert.equal(clock.timers.size + clock.doc.listenerCount() + clock.win.listenerCount(), 0);
 });
 

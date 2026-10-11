@@ -43,6 +43,8 @@ export type UsageDashboardSnapshot = {
 
 export const USAGE_DASHBOARD_CACHE_KEY = 'mixdog.desktop.sidebar-usage.v1';
 export const USAGE_DASHBOARD_REFRESH_INTERVAL_MS = 5 * 60_000;
+export const CODEX_USAGE_REFRESH_INTERVAL_MS = 60_000;
+export const USAGE_TURN_SETTLE_DELAY_MS = 3_000;
 /** A snapshot younger than this satisfies an open/prewarm without a request. */
 const USAGE_DASHBOARD_TTL_MS = USAGE_DASHBOARD_REFRESH_INTERVAL_MS;
 export const USAGE_DASHBOARD_RETRY_DELAY_MS = 15_000;
@@ -83,6 +85,7 @@ let retryTimer: number | null = null;
 let retryUsed = false;
 let cadenceHolders = 0;
 let releaseCadence: (() => void) | null = null;
+let releaseCodexCadence: (() => void) | null = null;
 let releaseReconnectRetry: (() => void) | null = null;
 let cadenceApi: UsageApi | undefined;
 let accountChangesApi: UsageApi | undefined;
@@ -225,6 +228,8 @@ function clearTimers(): void {
 function stopCadence(): void {
   const release = releaseCadence;
   releaseCadence = null;
+  releaseCodexCadence?.();
+  releaseCodexCadence = null;
   releaseReconnectRetry?.();
   releaseReconnectRetry = null;
   releaseAccountChanges?.();
@@ -593,13 +598,38 @@ function scheduleRetirement(): void {
   });
 }
 
+function refreshCodexUsage(api: UsageApi | undefined): void {
+  const rows = snapshot.dashboard.rows as UsageRecord[] | undefined;
+  if (!rows?.some((row) => row.id === 'openai-oauth' && row.authenticated)) return;
+  void refreshUsageDashboard(api, { force: true, providers: ['openai-oauth'] });
+}
+
 function bindAccountChanges(win: Window, api: UsageApi): void {
   if (accountChangesApi === api) return;
   releaseAccountChanges?.();
   accountChangesApi = api;
   let released = false;
-  const receive = (state: SessionSnapshot) => {
+  const busySessions = new Map<string, boolean>();
+  let settledTimer: number | null = null;
+  const receive = (state: SessionSnapshot, sessionId = 'active') => {
     if (released || host !== win || cadenceHolders === 0) return;
+    // Both active-pane and pooled-session publications can announce the same
+    // completion. Coalesce them, including several workers settling together,
+    // and let the usage service account for the last request before querying.
+    if (typeof state?.busy === 'boolean') {
+      const wasBusy = busySessions.get(sessionId) === true;
+      busySessions.set(sessionId, state.busy);
+      if (busySessions.size > 256) busySessions.delete(busySessions.keys().next().value!);
+      if (wasBusy && !state.busy && win.document?.visibilityState !== 'hidden') {
+        if (settledTimer !== null) clearTracked(win, settledTimer);
+        settledTimer = trackTimeout(win, () => {
+          settledTimer = null;
+          if (!released && host === win && cadenceHolders > 0 && win.document?.visibilityState !== 'hidden') {
+            refreshCodexUsage(cadenceApi);
+          }
+        }, USAGE_TURN_SETTLE_DELAY_MS);
+      }
+    }
     const change = state?.providerAccountChange;
     if (!change?.provider || !change.accountId || !Number.isFinite(change.at)) return;
     const previous = latestAccountChanges.get(change.provider);
@@ -616,9 +646,10 @@ function bindAccountChanges(win: Window, api: UsageApi): void {
     void refreshUsageDashboardAfterAuth(api, [change.provider]);
   };
   const releaseState = api.subscribeState?.(receive);
-  const releaseSessions = api.subscribeSessionState?.(({ snapshot: state }) => receive(state));
+  const releaseSessions = api.subscribeSessionState?.(({ snapshot: state, sessionId }) => receive(state, sessionId));
   releaseAccountChanges = () => {
     released = true;
+    if (settledTimer !== null) clearTracked(win, settledTimer);
     releaseState?.();
     releaseSessions?.();
   };
@@ -644,6 +675,14 @@ export function holdUsageDashboardCadence(api: UsageApi | undefined): () => void
         retryTimer = null;
         if (!pending && snapshot.status === 'loading') publishStatus(settledStatus());
       },
+    });
+    // Codex's shared allowance also changes in other clients. Keep its meter
+    // within a minute while visible, without hammering other providers' usage
+    // endpoints (notably Anthropic's aggressively rate-limited endpoint).
+    releaseCodexCadence = startVisibleRefreshCadence({
+      win,
+      intervalMs: CODEX_USAGE_REFRESH_INTERVAL_MS,
+      refresh: () => refreshCodexUsage(cadenceApi),
     });
     // A phone that booted while its desktop was still redialing (a relay
     // deploy) failed this read on the dropped connection; the bounded retry
