@@ -1,0 +1,41 @@
+{
+    "id": "d8425267-59b8-4f56-92ee-2cc6e43ca4d4",
+    "started_at": "2026-10-12T10:41:27.763368",
+    "updated_at": "2026-10-12T11:04:58.057852",
+    "finished_at": "2026-10-12T11:04:58.057852",
+    "n_total_trials": 3,
+    "stats": {
+        "n_completed_trials": 3,
+        "n_errored_trials": 0,
+        "n_running_trials": 0,
+        "n_pending_trials": 0,
+        "n_cancelled_trials": 0,
+        "n_retries": 0,
+        "evals": {
+            "hive-mixdog__deepseek-v4.1-flash__tasks-2cpu": {
+                "n_trials": 3,
+                "n_errors": 0,
+                "metrics": [
+                    {
+                        "mean": 1.0
+                    }
+                ],
+                "pass_at_k": {},
+                "reward_stats": {
+                    "reward": {
+                        "1.0": [
+                            "compile-compcert__6WBZb5C",
+                            "install-windows-3.11__wC4kbRN",
+                            "overfull-hbox__vYBXSQM"
+                        ]
+                    }
+                },
+                "exception_stats": {}
+            }
+        },
+        "n_input_tokens": 2145369,
+        "n_cache_tokens": 1647872,
+        "n_output_tokens": 59566,
+        "cost_usd": null
+    }
+}

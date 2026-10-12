@@ -1,0 +1,47 @@
+- id: llm-pi-ai
+  config:
+    providers:
+      hive:
+        api: openai-completions
+        baseURL: https://api-cdn.thehive.ai/api/v3/
+        apiKeyEnv: HIVE_API_KEY
+        reasoning: high
+        compat:
+          supportsStore: false
+          supportsDeveloperRole: false
+          maxTokensField: max_completion_tokens
+        models:
+          - id: deepseek-ai/deepseek-v4.1-flash
+            contextWindow: 400000
+            reasoningEfforts:
+              high: high
+- id: agent-default-model
+  config:
+    provider: hive
+    model: deepseek-ai/deepseek-v4.1-flash
+- id: session-title-llm
+  disabled: true
+- id: subagent
+  disabled: true
+- id: subagent-spawn-in-process
+  disabled: true
+- id: subagent-fork-in-process
+  disabled: true
+- id: tool-subagent
+  disabled: true
+- id: tool-subagent-fork
+  disabled: true
+- id: tool-subagent-control
+  disabled: true
+- id: tool-subagent-list-agents
+  disabled: true
+- id: workflow-ptc
+  disabled: true
+- id: tool-workflow
+  disabled: true
+- id: skill-filesystem
+  disabled: true
+- id: tool-skill
+  disabled: true
+- id: tool-web
+  disabled: true

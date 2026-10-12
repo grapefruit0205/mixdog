@@ -1,0 +1,26 @@
+{
+    "jobs_dir": "/opt/hive-benchmark/results/jobs-dsh-4cpu",
+    "n_concurrent_trials": 1,
+    "environment": {
+        "type": "docker",
+        "mounts": [
+            {
+                "type": "bind",
+                "source": "/opt/hive-benchmark/payload",
+                "target": "/opt/hive-runtime",
+                "read_only": true
+            }
+        ]
+    },
+    "agents": [
+        {
+            "name": "aws_agents:HiveDSH",
+            "model_name": "deepseek-ai/deepseek-v4.1-flash"
+        }
+    ],
+    "datasets": [
+        {
+            "path": "/opt/hive-benchmark/payload/tasks-4cpu"
+        }
+    ]
+}
