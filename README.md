@@ -8,6 +8,7 @@
   The open-source coding agent that uses 63% fewer tokens.
 </p>
 
+
 <p align="center">
   <a href="https://github.com/tribgames/mixdog/releases/latest/download/mixdog-desktop-win-x64.exe"><img src="https://raw.githubusercontent.com/tribgames/mixdog/main/docs/assets/download-windows.svg" alt="Download for Windows" height="48"></a>
   &nbsp;
@@ -123,6 +124,11 @@ more tasks than Claude Code at 19% lower cost. Every verdict, log, and script
 is published in [`benchmarks/terminal-bench-2.1/`](benchmarks/terminal-bench-2.1/),
 and [Context efficiency](docs/context-efficiency.md) explains where the
 savings come from.
+
+On the same 89 tasks with **DeepSeek V4.1 Flash**, the native DSH harness
+reached 72.7% while Mixdog solved 76.4% at 15% faster solves and 22% fewer
+model calls on the tasks it passes — with 84% of its input served from
+prompt cache. Raw artifacts are retained in a private archive.
 
 ## Documentation
 
